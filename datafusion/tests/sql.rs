@@ -3418,6 +3418,33 @@ async fn explain_analyze_runs_optimizers() {
     assert_contains!(actual, expected);
 }
 
+#[tokio::test]
+async fn select_decimal_csv_table() {
+    let mut ctx = ExecutionContext::new();
+    // register csv table with decimal schema
+    register_decimal_simple_csv(&mut ctx).await;
+    let sql = "select c1 from aggregate_simple";
+    let actual_result = execute_to_batches(&mut ctx, sql).await;
+    // just print the result
+    println!("{:?}", actual_result);
+}
+
+async fn register_decimal_simple_csv(ctx: &mut ExecutionContext) -> Result<()> {
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("c1", DataType::Decimal(10, 5), false),
+        Field::new("c2", DataType::Decimal(20, 12), false),
+        Field::new("c3", DataType::Boolean, false),
+    ]));
+
+    ctx.register_csv(
+        "aggregate_simple",
+        "tests/aggregate_simple.csv",
+        CsvReadOptions::new().schema(&schema),
+    )
+    .await?;
+    Ok(())
+}
+
 async fn register_aggregate_csv_by_sql(ctx: &mut ExecutionContext) {
     let testdata = datafusion::test_util::arrow_test_data();
 
@@ -3472,7 +3499,7 @@ async fn register_aggregate_csv(ctx: &mut ExecutionContext) -> Result<()> {
 }
 
 async fn register_aggregate_simple_csv(ctx: &mut ExecutionContext) -> Result<()> {
-    // It's not possible to use aggregate_test_100, not enought similar values to test grouping on floats
+    // It's not possible to use aggregate_test_100, not enough similar values to test grouping on floats
     let schema = Arc::new(Schema::new(vec![
         Field::new("c1", DataType::Float32, false),
         Field::new("c2", DataType::Float64, false),
