@@ -47,6 +47,9 @@ pub struct Column {
     pub name: String,
 }
 
+// 一个column的表示：除了column的 field name，还有就是对应的 table name
+// column：这里表示的是对应的 logical plan的内容
+
 impl Column {
     /// Create Column from unqualified name.
     pub fn from_name(name: impl Into<String>) -> Self {
@@ -1212,6 +1215,7 @@ pub fn or(left: Expr, right: Expr) -> Expr {
 pub fn col(ident: &str) -> Expr {
     Expr::Column(ident.into())
 }
+// 最基本的对应的column的数据类型
 
 /// Convert an expression into Column expression if it's already provided as input plan.
 ///
@@ -1413,6 +1417,8 @@ pub fn in_list(expr: Expr, list: Vec<Expr>, negated: bool) -> Expr {
 }
 
 /// Trait for converting a type to a [`Literal`] literal expression.
+/// 把各种对应的type的一个值，直接转化为对应的literal对应的类型
+/// 由于decimal需要的参数比较多，是没有办法直接进行convert操作的
 pub trait Literal {
     /// convert the value to a Literal expression
     fn lit(&self) -> Expr;
@@ -1453,6 +1459,7 @@ impl Literal for ScalarValue {
     }
 }
 
+// 构造一个对应的 literal类型
 macro_rules! make_literal {
     ($TYPE:ty, $SCALAR:ident, $DOC: expr) => {
         #[doc = $DOC]
@@ -1464,6 +1471,7 @@ macro_rules! make_literal {
     };
 }
 
+// 构造一个时间类型的literal
 macro_rules! make_timestamp_literal {
     ($TYPE:ty, $SCALAR:ident, $DOC: expr) => {
         #[doc = $DOC]

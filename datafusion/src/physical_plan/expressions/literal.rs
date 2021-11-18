@@ -31,6 +31,7 @@ use crate::{error::Result, scalar::ScalarValue};
 /// Represents a literal value
 #[derive(Debug)]
 pub struct Literal {
+    // 常量一定是一个确定的value
     value: ScalarValue,
 }
 

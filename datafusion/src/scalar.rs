@@ -89,6 +89,9 @@ pub enum ScalarValue {
     /// struct of nested ScalarValue (boxed to reduce size_of(ScalarValue))
     #[allow(clippy::box_vec)]
     Struct(Option<Box<Vec<ScalarValue>>>, Box<Vec<Field>>),
+    /// decimal value
+    /// first filed is value, second field precision, third field is scale
+    Decimal(Option<i128>, Option<usize>, Option<usize>),
 }
 
 // manual implementation of `PartialEq` that uses OrderedFloat to
@@ -130,6 +133,12 @@ impl PartialEq for ScalarValue {
             (UInt32(_), _) => false,
             (UInt64(v1), UInt64(v2)) => v1.eq(v2),
             (UInt64(_), _) => false,
+            (Decimal(v1, p1, s1), Decimal(v2, p2, s2)) => {
+                // TODO liukun4515
+                // how compare the decimal(1230,10,2) with decimal(123,10,1)
+                false
+            }
+            (Decimal(_, _, _), _) => false,
             (Utf8(v1), Utf8(v2)) => v1.eq(v2),
             (Utf8(_), _) => false,
             (LargeUtf8(v1), LargeUtf8(v2)) => v1.eq(v2),
@@ -201,6 +210,22 @@ impl PartialOrd for ScalarValue {
             (UInt32(_), _) => None,
             (UInt64(v1), UInt64(v2)) => v1.partial_cmp(v2),
             (UInt64(_), _) => None,
+            (Decimal(v1, p1, s1), Decimal(v2, p2, s2)) => {
+                // TODO liukun4515
+                if v1.is_none()
+                    || p1.is_none()
+                    || s1.is_none()
+                    || v2.is_none()
+                    || p2.is_none()
+                    || s2.is_none()
+                {
+                    None
+                } else {
+                    // compare the decimal, we should consider the scale and value（i128)
+                    v1.partial_cmp(v2)
+                }
+            }
+            (Decimal(_, _, _), _) => None,
             (Utf8(v1), Utf8(v2)) => v1.partial_cmp(v2),
             (Utf8(_), _) => None,
             (LargeUtf8(v1), LargeUtf8(v2)) => v1.partial_cmp(v2),
@@ -270,6 +295,11 @@ impl std::hash::Hash for ScalarValue {
             UInt16(v) => v.hash(state),
             UInt32(v) => v.hash(state),
             UInt64(v) => v.hash(state),
+            Decimal(v, p, s) => {
+                v.hash(state);
+                p.hash(state);
+                s.hash(state);
+            }
             Utf8(v) => v.hash(state),
             LargeUtf8(v) => v.hash(state),
             Binary(v) => v.hash(state),
@@ -495,6 +525,8 @@ impl ScalarValue {
             }
             ScalarValue::IntervalDayTime(_) => DataType::Interval(IntervalUnit::DayTime),
             ScalarValue::Struct(_, fields) => DataType::Struct(fields.as_ref().clone()),
+            // TODO liukun4515
+            ScalarValue::Decimal(_, p, s) => DataType::Decimal(p.unwrap(), s.unwrap())
         }
     }
 
@@ -513,6 +545,7 @@ impl ScalarValue {
             ScalarValue::Int16(Some(v)) => ScalarValue::Int16(Some(-v)),
             ScalarValue::Int32(Some(v)) => ScalarValue::Int32(Some(-v)),
             ScalarValue::Int64(Some(v)) => ScalarValue::Int64(Some(-v)),
+            // TODO liukun4515
             _ => panic!("Cannot run arithmetic negate on scalar value: {:?}", self),
         }
     }
@@ -541,6 +574,8 @@ impl ScalarValue {
                 | ScalarValue::TimestampMicrosecond(None)
                 | ScalarValue::TimestampNanosecond(None)
                 | ScalarValue::Struct(None, _)
+                // TODO liukun4515
+                | ScalarValue::Decimal(None, _,_)
         )
     }
 
@@ -1071,6 +1106,7 @@ impl ScalarValue {
                     Arc::new(StructArray::from(field_values))
                 }
             },
+            ScalarValue::Decimal(_, _, _) => {}
         }
     }
 
@@ -1675,6 +1711,7 @@ impl ScalarType<i64> for TimestampNanosecondType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::scalar::ScalarValue::{Decimal, Int32, Int64};
 
     #[test]
     fn scalar_value_to_array_u64() {
@@ -2063,6 +2100,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn scalar_eq() {
+        let v1 = Int64(Some(33));
+        assert_eq!(v1, Int64(Some(33)));
+        assert_ne!(v1 != Int64(Some(12)));
+        assert_ne!(v1 != Int64(None));
+        assert_ne!(v1 != Int32(Some(12)));
+
+        // decimal type
+        let d1 = Decimal(Some(123_i128), Some(10), Some(1));
+        assert_eq!(d1, Decimal(Some(1230_i128), Some(10), Some(2)));
     }
 
     #[test]
